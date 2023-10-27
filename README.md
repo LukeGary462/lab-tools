@@ -1,2 +1,1 @@
-# lab-tools
-software interfaces to my lab equipment
+Ignore the license blocks at the top of each file, its a template that I forgot to turn off on my sublime text customizations...
