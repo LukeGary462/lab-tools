@@ -1,19 +1,4 @@
 #!/usr/bin/env python
-# python 3
-##    @file:    daq.py
-#     @name:    Luke Gary
-#  @company:    RyeEffectsResearch
-#     @date:    2020/3/10
-################################################################################
-# @copyright
-#   Copyright 2020 RyeEffectsResearch as an  unpublished work.
-#   All Rights Reserved.
-#
-# @license The information contained herein is confidential
-#   property of RyeEffectsResearch. The user, copying, transfer or
-#   disclosure of such information is prohibited except
-#   by express written agreement with RyeEffectsResearch.
-################################################################################
 
 """
 Data Aquisition Units

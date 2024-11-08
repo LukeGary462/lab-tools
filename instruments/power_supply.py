@@ -1,20 +1,4 @@
 #!/usr/bin/env python
-# python 3
-#pylint: disable=import-error
-##    @file:    power_supply.py
-#     @name:    Luke Gary
-#  @company:    RyeEffectsResearch
-#     @date:    2020/3/10
-################################################################################
-# @copyright
-#   Copyright 2020 RyeEffectsResearch as an  unpublished work.
-#   All Rights Reserved.
-#
-# @license The information contained herein is confidential
-#   property of RyeEffectsResearch. The user, copying, transfer or
-#   disclosure of such information is prohibited except
-#   by express written agreement with RyeEffectsResearch.
-################################################################################
 
 """
 power supply interfaces
@@ -22,6 +6,40 @@ power supply interfaces
 from instruments.instrument import Instrument
 from instruments.multi_function import U3606B
 from pyvisa import (VisaIOError, VisaIOWarning, InvalidSession)
+
+class PowerSupplyModels:
+    """
+    This class describes power supply models.
+    """
+    def __init__(self):
+        """construct"""
+        self.models = {}
+        self.models['U3606B'] = U3606B
+        self.models['DP832'] = DP832
+
+    def get(self, model: str) -> Instrument:
+        """
+        Gets the specified model.
+
+        :param      model:  The model
+        :type       model:  str
+
+        :returns:   multimeter object
+        :rtype:     Instrument
+        """
+        return self.models.get(model, None)
+
+    def is_valid(self, model: str) -> bool:
+        """
+        Determines whether the specified model is valid.
+
+        :param      model:  The model
+        :type       model:  str
+
+        :returns:   True if the specified model is valid, False otherwise.
+        :rtype:     bool
+        """
+        return model in self.models.keys()
 
 def connect_to_power_supply(model: str, supply_serial: str = None, tcpip: bool = False) -> object:
     """
@@ -35,13 +53,8 @@ def connect_to_power_supply(model: str, supply_serial: str = None, tcpip: bool =
     :returns:   power supply object if model is valid, None if not
     :rtype:     object
     """
-    power_supply_models = {
-        'U3606B': U3606B,
-        'DP832': DP832,
-    }
-
     power_supply_obj = None
-    power_supply = power_supply_models.get(model, None)
+    power_supply = PowerSupplyModels().get(model)
     if power_supply:
         try:
             power_supply_obj = power_supply(
@@ -59,36 +72,8 @@ class DP832(Instrument):
     This class describes a rigol dp832.
     """
     def __init__(self, **kwargs):
-        serial_number = kwargs.get('serial_number', None)
-        tcpip = kwargs.get('include_tcpip', True)
-        try:
-            kwargs.pop('serial_number')
-            kwargs.pop('include_tcpip')
-        except KeyError:
-            pass
         super().__init__(**kwargs)
-        if serial_number:
-            self.debug(f'Attempting Connect to {serial_number}', enable=True)
-            self.connect(
-                serial_number=serial_number,
-                include_tcpip=tcpip
-            )
-        else:
-            # connect to the first DP832
-            self.debug('No Serial Given, connecting to first DP832', enable=True)
-            devices = self.list_devices()
-            connected = False
-            self.debug(devices)
-            for device in devices:
-                if device.get('model') == 'DP832':
-                    self.connect(
-                        serial_number=device.get('serial_number'),
-                        include_tcpip=kwargs.get('include_tcpip', True)
-                    )
-                    connected = True
-                    break
-            if connected is False:
-                raise InvalidSession()
+        self.__inst_init__(model='DP832', **kwargs)
 
     @staticmethod
     def check_channel(channel: int):

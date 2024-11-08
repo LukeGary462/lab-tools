@@ -1,11 +1,4 @@
 #!/usr/bin/env python
-# python 3
-#pylint: disable=import-error
-##    @file:    sr770.py
-#     @name:    Luke Gary
-#  @company:
-#     @date:    2023/12/22
-
 
 """
 VISA interface to Stanford Research Systems SR770 Dynamic Signal Analyzer

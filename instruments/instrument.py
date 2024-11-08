@@ -1,27 +1,11 @@
 #!/usr/bin/env python
-# python 3
-#pylint: disable=import-error
-##    @file:    instrument.py
-#     @name:    Luke Gary
-#  @company:    RyeEffectsResearch
-#     @date:    2020/3/10
-################################################################################
-# @copyright
-#   Copyright 2020 RyeEffectsResearch as an  unpublished work.
-#   All Rights Reserved.
-#
-# @license The information contained herein is confidential
-#   property of RyeEffectsResearch. The user, copying, transfer or
-#   disclosure of such information is prohibited except
-#   by express written agreement with RyeEffectsResearch.
-################################################################################
 
 """
 Generic VISA Intrument interface
 """
 
 import time
-
+from datetime import datetime
 from typing import List
 import pprint as pp
 from pyvisa import (VisaIOError, InvalidSession, VisaIOWarning, log_to_screen, ResourceManager)
@@ -35,10 +19,13 @@ class Instrument: #pylint: disable=too-many-instance-attributes
     """
     an instrument convenience class.
     """
-    def __init__(self, debug: bool = False, timeout: int = 1000, backend=None):
+    def __init__(self, **kwargs):
         """
         constructor
         """
+        debug = kwargs.get('debug', False)
+        timeout = kwargs.get('timeout', 1000)
+        backend = kwargs.get('backend', None)
         if backend is not None:
             self._manager = ResourceManager(backend)
         else:
@@ -57,6 +44,33 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         self._start_time_seconds = round(time.time() * 1000)
         self._start_time_seconds /= 1000.0
 
+    def __inst_init__(self, model, **kwargs):
+        serial_number = kwargs.get('serial_number')
+        if serial_number:
+            self.debug(f'Attempting Connect to {serial_number}', enable=True)
+            self.connect(
+                serial_number=serial_number,
+                include_tcpip=kwargs.get('include_tcpip', True),
+                include_rs232=kwargs.get('include_rs232', True)
+            )
+        else:
+            # connect to the first model given
+            self.debug(f'No Serial Given, connecting to first {model}', enable=True)
+            devices = self.list_devices()
+            connected = False
+            for device in devices:
+                if device.get('model') == model:
+                    self.debug(f'Attempt connect to {model} - {device.get("serial_number")}')
+                    self.connect(
+                        serial_number=device.get('serial_number'),
+                        include_tcpip=kwargs.get('include_tcpip', True),
+                        include_rs232=kwargs.get('include_rs232', True),
+                    )
+                    connected = True
+                    break
+            if connected is False:
+                raise Exception(f'Could not connect to {serial_number}')
+
     @property
     def debug_enable(self) -> bool:
         ''' accessor '''
@@ -65,6 +79,7 @@ class Instrument: #pylint: disable=too-many-instance-attributes
     @debug_enable.setter
     def debug_enable(self, value: bool):
         ''' set debug mode '''
+        self.debug(f'Debug : {value}', True)
         self._debug_enable = value
 
     @staticmethod
@@ -90,6 +105,14 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         """
         identify instrument
         """
+        # try with read terminator of \n
+        self.device.read_termination = '\n'
+        response = self.query('*idn?')
+        if response is not None:
+            idn = self.decode_idn(response)
+            return idn
+        # try again with \r read termination
+        self.device.read_termination = '\r'
         response = self.query('*idn?')
         if response is not None:
             idn = self.decode_idn(response)
@@ -97,7 +120,7 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         self.debug('IDN Error')
         return None
 
-    def list_devices(self, include_tcpip: bool = False) -> List[dict]:
+    def list_devices(self, include_tcpip: bool = False, include_rs232: bool = False) -> List[dict]:
         """
         get list of connected instrument serial numbers
 
@@ -110,7 +133,13 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         results = []
 
         self.debug('Looking for USB Connected instruments ...')
+        # usb devices
         device_list = self._manager.list_resources(query='USB?*')
+
+        # rs232 devices
+        if include_rs232:
+            device_list += self._manager.list_resources(query='ASRL?*')
+
         if include_tcpip:
             self.debug('Looking for TCPIP Connected instruments ...')
             device_list += self._manager.list_resources(query='TCPIP?*')
@@ -144,7 +173,14 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         self.device = _shadow
         return results
 
-    def connect(self, serial_number: str, include_tcpip: bool = False) -> bool:
+    def connect(
+        self,
+        serial_number: str,
+        include_tcpip: bool = False,
+        include_rs232: bool = False,
+        model: str = None,
+        read_terminator = '\n',
+        timeout: int = 5000) -> bool:
         """
         connect to a device
 
@@ -163,18 +199,30 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         self._start_time_seconds = round(time.time() * 1000)
         self._start_time_seconds /= 1000.0
 
-        idn_list = self.list_devices(include_tcpip=include_tcpip)
+        idn_list = self.list_devices(
+            include_tcpip=include_tcpip,
+            include_rs232=include_rs232,
+        )
         target = None
         for _idn in idn_list:
             if serial_number.lower() == _idn.get('serial_number').lower():
                 target = _idn
                 pp.pprint(_idn)
-                self.device = _idn.get('device')
-                break
+                # check for the proper model if given
+                if model:
+                    if model.lower() == _idn.get('model'):
+                        self.device = _idn.get('device')
+                        break
+                else:
+                    self.device = _idn.get('device')
+                    break
 
         if self.device is None:
             self.debug(f'Could not connect to \'{serial_number}\'')
             return False
+
+        self.device.read_termination = read_terminator
+        self.device.timeout = timeout
 
         self._manufacturer = target.get('manufacturer')
         self._model = target.get('model')
@@ -207,13 +255,13 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         if self._debug_enable or enable:
             try:
                 print(
-                    f'{self.seconds():0.4f} - '+
+                    f'{datetime.now().isoformat()} - '+
                     f'{type(self).__name__}(sid:{self.device.session}): '+
                     f'{data}'
                     )
             except (InvalidSession, AttributeError):
                 print(
-                    f'{self.seconds():0.4f} - '+
+                    f'{datetime.now().isoformat()} - '+
                     f'{type(self).__name__}(-CLOSED-): '+
                     f'{data}'
                 )
@@ -238,7 +286,14 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         """ accessor """
         return self._version
 
-    def query(self, cmd: str):
+    def write_configs(self, configs: List[str]):
+        ''' write a list of configurations to the instrument'''
+        for conf in configs:
+            if conf is None:
+                continue
+            self.write(conf)
+
+    def query(self, cmd: str, **kwargs):
         """
         read/write opoeration to instrument
 
@@ -247,15 +302,32 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         """
         if self.device is None:
             return None
-        try:
-            self.debug(f'query( {cmd} )')
-            response = self.device.query(cmd)
-            response = response.replace('\r', '').replace('\n', '')
-            self.debug(f'resp( {response} )')
-            return response
-        except (InvalidSession, VisaIOError, VisaIOWarning) as _e:
-            self.debug(f'QUERY Error: {_e}')
-            return None
+
+        query_ascii = kwargs.get('is_ascii', True)
+        query_binary = kwargs.get('is_binary', False)
+        if query_ascii and not query_binary:
+            try:
+                self.debug(f'query( {cmd} )')
+                response = self.device.query(cmd)
+                response = response.replace('\r', '').replace('\n', '')
+                self.debug(f'resp( {response} )')
+                return response
+            except (InvalidSession, VisaIOError, VisaIOWarning) as _e:
+                self.debug(f'QUERY Error: {_e}')
+                return None
+        else:
+            try:
+                self.debug(f'query( {cmd} )')
+                response = self.device.query_binary_values(
+                    cmd,
+                    datatype=kwargs.get('datatype', 'd'),
+                    is_big_endian=kwargs.get('is_big_endian', True)
+                )
+                self.debug(f'resp( {response} )')
+                return response
+            except (InvalidSession, VisaIOError, VisaIOWarning) as _e:
+                self.debug(f'QUERY Error: {_e}')
+                return None
 
     def write(self, cmd: str):
         """
@@ -300,13 +372,15 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         except (InvalidSession, VisaIOError, VisaIOWarning):
             return None
 
-    def close(self):
+    def close(self, **kwargs):
         """
         close instrument
         """
         if self.device is None:
             return
         try:
+            if kwargs.get('reset', False):
+                self.reset()
             self.write('system:local')
             self.device.before_close()
             self.device.close()

@@ -1,20 +1,4 @@
 #!/usr/bin/env python
-# python 3
-#pylint: disable=import-error
-##    @file:    multi_function.py
-#     @name:    Luke Gary
-#  @company:    RyeEffectsResearch
-#     @date:    2020/3/10
-################################################################################
-# @copyright
-#   Copyright 2020 RyeEffectsResearch as an  unpublished work.
-#   All Rights Reserved.
-#
-# @license The information contained herein is confidential
-#   property of RyeEffectsResearch. The user, copying, transfer or
-#   disclosure of such information is prohibited except
-#   by express written agreement with RyeEffectsResearch.
-################################################################################
 
 """
 multi-function bench equipment
@@ -23,40 +7,36 @@ multi-function bench equipment
 from instruments.instrument import Instrument
 from pyvisa import (InvalidSession)
 
+class MultiFunctionModels:
+    """
+    This class describes oscilloscope models.
+    """
+    def __init__(self):
+        self.models = {}
+        self.models['U3606B'] = U3606B
+
+    def get(self, model: str) -> Instrument:
+        """
+        Gets the specified model.
+
+        :param      model:  The model
+        :type       model:  str
+
+        :returns:   class
+        :rtype:     Instrument
+        """
+        return self.models.get(model, None)
+
+    def is_valid(self, model: str) -> bool:
+        return model in self.models.keys()
+
 class U3606B(Instrument):
     """
     This class describes a Keysight U3606B PSU/Meter.
     """
     def __init__(self, **kwargs):
-        serial_number = kwargs.get('serial_number', None)
-        tcpip = kwargs.get('include_tcpip', True)
-        try:
-            kwargs.pop('serial_number')
-            kwargs.pop('include_tcpip')
-        except KeyError:
-            pass
         super().__init__(**kwargs)
-        if serial_number:
-            self.debug(f'Attempting Connect to {serial_number}', enable=True)
-            self.connect(
-                serial_number=serial_number,
-                include_tcpip=tcpip
-            )
-        else:
-            # connect to the first U3606B
-            self.debug('No Serial Given, connecting to first U3606B', enable=True)
-            devices = self.list_devices()
-            connected = False
-            for device in devices:
-                if device.get('model') == 'U3606B':
-                    self.connect(
-                        serial_number=device.get('serial_number'),
-                        include_tcpip=kwargs.get('include_tcpip', True)
-                    )
-                    connected = True
-                    break
-            if connected is False:
-                raise InvalidSession(f'Could not connect to {serial_number}')
+        self.__inst_init__(model='U3606B', **kwargs)
 
     def measure_all(self, channel: int = 1) -> dict:
         """
