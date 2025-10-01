@@ -56,8 +56,8 @@ class Instrument: #pylint: disable=too-many-instance-attributes
             self.debug(f'Attempting Connect to {serial_number}', enable=True)
             self.connect(
                 serial_number=serial_number,
-                include_tcpip=kwargs.get('include_tcpip', True),
-                include_rs232=kwargs.get('include_rs232', True)
+                include_tcpip=kwargs.get('include_tcpip', False),
+                include_rs232=kwargs.get('include_rs232', False)
             )
         else:
             # connect to the first model given
@@ -69,8 +69,8 @@ class Instrument: #pylint: disable=too-many-instance-attributes
                     self.debug(f'Attempt connect to {model} - {device.get("serial_number")}')
                     self.connect(
                         serial_number=device.get('serial_number'),
-                        include_tcpip=kwargs.get('include_tcpip', True),
-                        include_rs232=kwargs.get('include_rs232', True),
+                        include_tcpip=kwargs.get('include_tcpip', False),
+                        include_rs232=kwargs.get('include_rs232', False),
                     )
                     connected = True
                     break
