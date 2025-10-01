@@ -19,6 +19,12 @@ class Instrument: #pylint: disable=too-many-instance-attributes
     """
     an instrument convenience class.
     """
+    ignore_list = [
+        'start',
+        'stop',
+        'run'
+    ]
+    
     def __init__(self, **kwargs):
         """
         constructor
@@ -292,6 +298,23 @@ class Instrument: #pylint: disable=too-many-instance-attributes
             if conf is None:
                 continue
             self.write(conf)
+
+    def write_read_configs(self, configs: List[str], verify: bool = False):
+        ''' write configs then read them back
+            bool verify:    false   - configs not checked,
+                            true    - will raise exception
+        '''
+        self.write_configs(configs)
+        for cfg in configs:
+
+            strp_config = cfg.split(' ')
+            if strp_config is None:
+                continue
+            # self.debug(f)
+            config = self.device.query(f'*{strp_config[0]}?\n')
+            config = None
+            self.debug(f'set( {cfg} ) - strp( {cfg.split(' ')} ) - rec( {config} )')
+
 
     def query(self, cmd: str, **kwargs):
         """

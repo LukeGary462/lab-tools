@@ -18,6 +18,8 @@ class OscilloscopeModels:
         self.models['DS1074Z'] = DS1074Z
         self.models['DSOX1102G'] = DSOX1102G
         self.models['MSOX3032T'] = MSOX3032T
+        self.models['WaveRunner8104MS'] = WaveRunner8104MS
+        self.models['WaveAce2012'] = WaveAce2012
 
     def get(self, model: str) -> Instrument:
         """
@@ -35,10 +37,10 @@ class OscilloscopeModels:
         return model in self.models.keys()
 
 def connect_to_oscilloscope(
-    model: str,
-    scope_serial: str = None,
-    rs232: bool = False,
-    tcpip: bool = False) -> object:
+        model: str,
+        scope_serial: str = None,
+        rs232: bool = False,
+        tcpip: bool = False) -> object:
     """
     Connects to oscilloscope.
 
@@ -65,6 +67,126 @@ def connect_to_oscilloscope(
             raise Exception(f'Could not connect to scope {model}:{scope_serial}')
     return scope_obj
 
+class WaveAce2012(Instrument):
+    '''Teledyne Lecroy WaveAce 2012 Oscilloscope
+
+    100MHz analog bandwidth, 2GS/s
+    Only basic configuration and waveform capture supported
+    https://cdn.teledynelecroy.com/files/manuals/wa1k2k_remote-control_manual.pdf
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.__inst_init__(model='WaveAce2012', **kwargs)
+
+    def default_setup(self):
+        '''default configuration for a scope
+
+        set channels active, 10x atten, bandwidth limiting, c1 trigger source,
+        dc coupling, 1v/div, trigger magnitude at 0.5v, rising edge trigger,
+        assume user is going to connect probes to probe comp source then compensate probes
+        '''
+        debug_state = self._debug_enable
+        self._debug_enable = True
+        self.write_configs(
+            configs=[
+                'stop',
+
+                'tdiv 100us',
+
+                'c1:tra on',
+                'c1:attn 10',
+                'c1:vdiv 1',
+                'c1:bwl off',
+                'c1:cpl d1m',
+
+                'c2:tra on',
+                'c2:attn 10',
+                'c2:vdiv 1',
+                'c2:bwl off',
+                'c2:cpl d1m',
+
+                'c1:trcp dc',
+                'c1:trlv 0.5',
+                'trmd norm',
+
+                'c1:ofst 0.0',
+                'c2:ofst -3.0',
+                'run'
+            ]
+        )
+        self._debug_enable = debug_state
+
+    def capture_setup(self, ch: int = 1, **kwargs):
+        debug_state = self._debug_enable
+        self._debug_enable = True
+        self.write_configs(
+            configs=[
+                'stop',
+                f'tdiv {kwargs.get("tdiv", "250us")}',
+                'c1:tra on',
+                'c1:attn 10',
+                'c1:vdiv 1',
+                'c1:bwl off',
+                'c1:cpl d1m',
+                'c1:trcp dc',
+                f'c1:trlv {kwargs.get("trlv", 0.5)}',
+                'trmd single',
+                'c1:ofst 0.0',
+                'run'
+            ]
+        )
+        self._debug_enable = debug_state
+
+    def get_waveform(self, ch: int = 1, **kwargs):
+        t = None
+        data = None
+        preamble = None
+        sample_rate = None
+
+        data = self.query(
+            cmd=f'C{1}:wf? all',
+            is_binary=True
+        )
+        return  {
+                'time': t,
+                'data': data,
+                'preamble': preamble,
+                'sample_rate': sample_rate
+                }
+
+    def get_timebase(self) -> float:
+        command = 'tdiv'
+        readback = self.device.query(command.lower())
+        readback = readback\
+                    .lower()\
+                    .replace(command,"")
+        return float(readback)
+
+
+class WaveRunner8104MS(Instrument):
+    '''Teledyne Lecroy Waverunner 8104-MS Oscilloscope
+
+    1GHz Analog Bandwidth Scope, Only basic configuration and
+    acquisition functions supported. See Programming manual for
+    more complex functions and use the superclass write/config methods.
+    See the test examples for a surrogate usecase.
+    https://cdn.teledynelecroy.com/files/manuals/waverunner-8000-operators-manual.pdf
+
+
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.__inst_init__(model='WaveRunner8104MS', **kwargs)
+        print('Consider using the lecroydso python package directly instead of this for now...')
+
+
+
+    def get_waveform(self, ch, **kwargs):
+        print("Not Supported Yet")
+        pass
+
 class DS1074Z(Instrument):
     """
     This class describes a Rigol ds1074z scope.
@@ -86,7 +208,8 @@ class DS1074Z(Instrument):
                 'wav:stop raw'
             ]
         )
-        sample_rate = float(self.query('acq:srate?'))
+        sample_rate = self.query('acq:srate?')
+        sample_rate = float(sample_rate)
         preamble_resp = self.query('wav:pre?')
         preamble_keys = [
             'format', 'type', 'points',
@@ -123,7 +246,6 @@ class DS1074Z(Instrument):
                 'preamble': preamble,
                 'sample_rate': sample_rate
                 }
-
 
     def get_waveform_ascii(self, ch: int, **kwargs):
         """
@@ -354,8 +476,6 @@ class MSOX3032T(Instrument):
         self.write(f'ACQ:SRAT:ANAL {requested_sample_rate}')
         return float(self.query('acq:srate?'))
 
-
-
 class DSOX1102G(Instrument):
     """
     This class describes a dsox1102g keysight oscilloscope.
@@ -454,6 +574,7 @@ class DSOX1102G(Instrument):
         self.write(f'TIM:SCAL {timescale}')
         timescale = self.query(f'TIM:SCAL?')
         self.debug(timescale)
+
     def set_waveform_byte_order(self, **kwargs):
         byte_order = kwargs.get('byte_order', 'MSBFirst')
         self.write(f'WAV:BYT {byte_order}')

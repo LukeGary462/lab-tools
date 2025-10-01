@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 def main():
 
     scope = connect_to_oscilloscope(
-        model='DS1074Z'
+        model='DS1074Z',
+        scope_serial='DS1ZA162853476'
     )
     scope.debug_enable = True
     scope.write_configs(
