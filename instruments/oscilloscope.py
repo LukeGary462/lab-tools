@@ -56,7 +56,8 @@ def connect_to_oscilloscope(
     """
     scope_obj = None
     scope = OscilloscopeModels().get(model)
-    if scope:
+    scope.debug_enable = True
+    if scope and scope_serial:
         try:
             scope_obj = scope(
                 serial_number=scope_serial,
@@ -65,6 +66,16 @@ def connect_to_oscilloscope(
                 )
         except (VisaIOError, VisaIOWarning, InvalidSession):
             raise Exception(f'Could not connect to scope {model}:{scope_serial}')
+
+    if scope:
+        try:
+            scope_obj = scope(
+                include_tcpip=tcpip,
+                include_rs232=rs232,
+                )
+        except (VisaIOError, VisaIOWarning, InvalidSession):
+            raise Exception(f'Could not connect to scope {model}:{scope_serial}')
+
     return scope_obj
 
 class WaveAce2012(Instrument):

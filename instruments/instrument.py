@@ -44,6 +44,8 @@ class Instrument: #pylint: disable=too-many-instance-attributes
         self._serial_number = ''
         self._version = ''
         self._interface = ''
+        self._manufacturer_id = 0x0000
+        self._model_id = 0x0000
 
         self._debug_enable = debug
         self._timeout = timeout

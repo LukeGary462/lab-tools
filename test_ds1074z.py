@@ -10,11 +10,21 @@ from time import sleep
 import scipy.signal as sig
 import matplotlib.pyplot as plt
 
+"""
+Rigol Technologies.  (0x1AB1
+
+DS1000Z Series (0x04CE)
+
+DS1ZA162853476
+
+"""
+
 def main():
 
     scope = connect_to_oscilloscope(
         model='DS1074Z',
-        scope_serial='DS1ZA162853476'
+        rs232=False,
+        tcpip=False,
     )
     scope.debug_enable = True
     scope.write_configs(
